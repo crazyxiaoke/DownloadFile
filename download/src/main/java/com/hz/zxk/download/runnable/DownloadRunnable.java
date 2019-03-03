@@ -5,6 +5,8 @@ import android.util.Log;
 
 import com.hz.zxk.download.callback.DownloadCallback;
 import com.hz.zxk.download.constants.ErrorCode;
+import com.hz.zxk.download.db.DownloadDBManager;
+import com.hz.zxk.download.db.DownloadProgress;
 import com.hz.zxk.download.http.HttpManager;
 import com.hz.zxk.download.util.FileStorageUtil;
 
@@ -42,25 +44,38 @@ public class DownloadRunnable implements Runnable {
     private static final int STATUS_STOP = 2;
 
     private Context mContext;
+    /** 线程ID */
+    private String mThreadId;
+    /** 下载路径 */
     private String mUrl;
+    /** 下载文件名 */
+    private String mFileName;
+    /** 下载开始位置 */
     private long mStartSize;
+    /** 下载结束位置 */
     private long mEndSize;
+    /** 下载回调 */
     private DownloadCallback mCallback;
-    private long progress;
-    //下载状态
+    /** 下载进度 */
+    private long mProgress;
+    /** 下载状态 */
     private int mStatus = STATUS_DOWNLOAD;
 
-    public DownloadRunnable(Context context, String url, long startSize, long endSize, DownloadCallback callback) {
+    public DownloadRunnable(Context context,String threadId, String url,String fileName, long startSize, long endSize,
+                            long lastProgress,DownloadCallback callback) {
         this.mContext = context;
+        this.mThreadId=threadId;
+        this.mFileName=fileName;
         this.mUrl = url;
         this.mStartSize = startSize;
         this.mEndSize = endSize;
+        this.mProgress=lastProgress;
         this.mCallback = callback;
     }
 
-    //开始下载
     @Override
     public void run() {
+        //开始下载
         Response response = HttpManager.getInstance().syncRequestRange(mUrl, mStartSize, mEndSize);
         if (response == null && mCallback != null) {
             mCallback.fail(ErrorCode.UNKOWN_ERROR_CODE, "未知错误");
@@ -69,8 +84,7 @@ public class DownloadRunnable implements Runnable {
         } else if (response.body() == null && mCallback != null) {
             mCallback.fail(ErrorCode.BODY_ERROR_CODE, "无法获取body");
         } else {
-            String fileName = mUrl.substring(mUrl.lastIndexOf("/"), mUrl.length());
-            File file = FileStorageUtil.getFile(mContext, fileName);
+            File file = FileStorageUtil.getFile(mContext, mFileName);
             RandomAccessFile randomAccessFile = null;
             InputStream inputStream = response.body().byteStream();
             try {
@@ -85,11 +99,23 @@ public class DownloadRunnable implements Runnable {
                         break;
                     }
                     randomAccessFile.write(buff, 0, len);
-                    progress += len;
+                    mProgress += len;
                     mCallback.progress(len);
+                    //更新数据库，更新下载进度
+                    DownloadProgress downloadProgress=new DownloadProgress();
+                    downloadProgress.setUrl(mUrl);
+                    downloadProgress.setThreadId(mThreadId);
+                    downloadProgress.setProgress(mProgress);
+                    DownloadDBManager.getInstance(mContext).update(downloadProgress);
                 }
-                if (progress >= (mEndSize - mStartSize) + 1) {
+                if (mProgress >= (mEndSize - mStartSize) + 1) {
                     mCallback.success(file);
+                    //线程下载完成，删除数据库中这条线程的记录
+                    DownloadProgress downloadProgress=new DownloadProgress();
+                    downloadProgress.setUrl(mUrl);
+                    downloadProgress.setThreadId(mThreadId);
+                    downloadProgress.setFileName(mFileName);
+                    DownloadDBManager.getInstance(mContext).delete(downloadProgress);
                 }
             } catch (IOException e) {
                 e.printStackTrace();

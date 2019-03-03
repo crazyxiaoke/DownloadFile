@@ -34,6 +34,10 @@ public class DownloadProgress {
     @Unique
     private String url;
 
+    private String fileName;
+
+    private String threadId;
+
     private long startSize;
 
     private long endSize;
@@ -42,11 +46,13 @@ public class DownloadProgress {
 
     private long progress;
 
-    @Generated(hash = 786752071)
-    public DownloadProgress(long id, String url, long startSize, long endSize,
-            long contentLength, long progress) {
+    @Generated(hash = 625750760)
+    public DownloadProgress(long id, String url, String fileName, String threadId,
+            long startSize, long endSize, long contentLength, long progress) {
         this.id = id;
         this.url = url;
+        this.fileName = fileName;
+        this.threadId = threadId;
         this.startSize = startSize;
         this.endSize = endSize;
         this.contentLength = contentLength;
@@ -56,7 +62,7 @@ public class DownloadProgress {
     @Generated(hash = 441206902)
     public DownloadProgress() {
     }
-
+    
     public long getId() {
         return id;
     }
@@ -103,5 +109,21 @@ public class DownloadProgress {
 
     public void setProgress(long progress) {
         this.progress = progress;
+    }
+
+    public String getFileName() {
+        return this.fileName;
+    }
+
+    public void setFileName(String fileName) {
+        this.fileName = fileName;
+    }
+
+    public String getThreadId() {
+        return this.threadId;
+    }
+
+    public void setThreadId(String threadId) {
+        this.threadId = threadId;
     }
 }

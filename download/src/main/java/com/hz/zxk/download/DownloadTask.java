@@ -2,7 +2,6 @@ package com.hz.zxk.download;
 
 import android.content.Context;
 import android.support.annotation.NonNull;
-import android.util.Log;
 
 import com.hz.zxk.download.callback.DownloadCallback;
 import com.hz.zxk.download.constants.ErrorCode;
@@ -45,28 +44,48 @@ import okhttp3.Response;
  * <p>
  * Created by zxk on 19-3-1.
  */
-public class DownloadManager {
+public class DownloadTask {
 
-    private static DownloadManager sManager;
+    private static DownloadTask sManager;
 
+    //最大线程数
     private static final int MAX_THREAD = 5;
-
+    private Context mContext;
     //总的下载进度
     private long totalProgress = 0;
     //已完成下载的线程个数
     private AtomicInteger mCompleteThreadNum = new AtomicInteger(0);
+    //下载路径
+    private String mUrl;
+    //下载回调
+    private DownloadCallback mCallback;
 
     private List<DownloadRunnable> mDownloadRunnables;
 
-    public DownloadManager() {
+    public DownloadTask() {
         this.mDownloadRunnables = new ArrayList<>();
     }
 
-    public static DownloadManager getInstance() {
+    public DownloadTask(Context context,String url,DownloadCallback callback){
+        this();
+        this.mContext=context;
+        this.mUrl=url;
+        this.mCallback=callback;
+    }
+
+    /**
+     * 返回下载路径
+     * @return
+     */
+    public String getUrl(){
+        return mUrl;
+    }
+
+    public static DownloadTask getInstance() {
         if (sManager == null) {
-            synchronized (DownloadManager.class) {
+            synchronized (DownloadTask.class) {
                 if (sManager == null) {
-                    sManager = new DownloadManager();
+                    sManager = new DownloadTask();
                 }
             }
         }
@@ -86,51 +105,44 @@ public class DownloadManager {
         }
     });
 
-    public void init(){
-
-    }
-
     /**
-     * 下载文件
-     *
-     * @param url
-     * @param callback
+     * 开始下载
      */
-    public void download(final Context context, final String url, final DownloadCallback callback) {
+    public void start(){
         //从数据库获取上次下载的进度，如果有，直接从上次下载终止的位置下载
         //如果没有，则从网络中获取文件的长度
-        List<DownloadProgress> lastDownloadProgresses=DownloadDBManager.getInstance(context).query(url);
+        List<DownloadProgress> lastDownloadProgresses=DownloadDBManager.getInstance(mContext).query(mUrl);
         if(lastDownloadProgresses!=null&&lastDownloadProgresses.size()>0){
             //获取上次下载的总进度
             for (DownloadProgress lastDownloadProgress : lastDownloadProgresses) {
                 totalProgress+=lastDownloadProgress.getProgress();
             }
-            lastProgressDownload(context,lastDownloadProgresses,callback);
+            lastProgressDownload(mContext,lastDownloadProgresses,mCallback);
         }else{
-            HttpManager.getInstance().aSyncRequest(url, new Callback() {
+            HttpManager.getInstance().aSyncRequest(mUrl, new Callback() {
                 @Override
                 public void onFailure(Call call, IOException e) {
-                    if (callback != null) {
-                        callback.fail(ErrorCode.UNKOWN_ERROR_CODE, e.getMessage());
+                    if (mCallback != null) {
+                        mCallback.fail(ErrorCode.UNKOWN_ERROR_CODE, e.getMessage());
                     }
                 }
 
                 @Override
                 public void onResponse(Call call, Response response) throws IOException {
-                    if (!response.isSuccessful() && callback != null) {
-                        callback.fail(ErrorCode.NETWORK_ERROR_CODE, "网络错误");
+                    if (!response.isSuccessful() && mCallback != null) {
+                        mCallback.fail(ErrorCode.NETWORK_ERROR_CODE, "网络错误");
                         return;
                     }
                     if (response.body() == null) {
-                        callback.fail(ErrorCode.BODY_ERROR_CODE, "无法获取body内容");
+                        mCallback.fail(ErrorCode.BODY_ERROR_CODE, "无法获取body内容");
                         return;
                     }
                     long contentLength = response.body().contentLength();
-                    if (contentLength == -1 && callback != null) {
-                        callback.fail(ErrorCode.CONTENT_LENGTH_ERROR_CODE, "无法获取文件长度");
+                    if (contentLength == -1 && mCallback != null) {
+                        mCallback.fail(ErrorCode.CONTENT_LENGTH_ERROR_CODE, "无法获取文件长度");
                         return;
                     }
-                    progressDownload(context, url, contentLength, callback);
+                    progressDownload(mContext, mUrl, contentLength, mCallback);
                 }
             });
         }
@@ -212,8 +224,13 @@ public class DownloadManager {
             }
 
             @Override
+            public void stop(String url) {
+
+            }
+
+            @Override
             public void progress(long progress) {
-                synchronized (DownloadManager.this) {
+                synchronized (DownloadTask.this) {
                     totalProgress += progress;
                     if (callback != null) {
                         callback.progress((int) (Float.valueOf(String.valueOf(totalProgress)) / contentLength * 100));
@@ -229,5 +246,9 @@ public class DownloadManager {
         for (DownloadRunnable downloadRunnable : mDownloadRunnables) {
             downloadRunnable.stop();
         }
+        if(mCallback!=null){
+            mCallback.stop(mUrl);
+        }
+
     }
 }

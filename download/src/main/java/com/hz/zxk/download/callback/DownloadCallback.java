@@ -40,9 +40,15 @@ public interface DownloadCallback {
     void fail(int code, String errormsg);
 
     /**
+     * 停止下载
+     */
+    void stop(String url);
+
+    /**
      * 下载进度
      *
      * @param progress
      */
     void progress(long progress);
+
 }

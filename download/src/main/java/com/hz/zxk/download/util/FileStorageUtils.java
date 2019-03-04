@@ -28,7 +28,7 @@ import java.util.Map;
  * <p>
  * Created by zxk on 19-3-1.
  */
-public class FileStorageUtil {
+public class FileStorageUtils {
 
     /**
      * 获取文件，如果找不到文件就创建。

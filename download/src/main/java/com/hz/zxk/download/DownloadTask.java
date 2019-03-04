@@ -2,6 +2,7 @@ package com.hz.zxk.download;
 
 import android.content.Context;
 import android.support.annotation.NonNull;
+import android.util.Log;
 
 import com.hz.zxk.download.callback.DownloadCallback;
 import com.hz.zxk.download.constants.ErrorCode;
@@ -9,6 +10,7 @@ import com.hz.zxk.download.db.DownloadDBManager;
 import com.hz.zxk.download.db.DownloadProgress;
 import com.hz.zxk.download.http.HttpManager;
 import com.hz.zxk.download.runnable.DownloadRunnable;
+import com.hz.zxk.download.util.NetworkUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -49,35 +51,42 @@ public class DownloadTask {
     private static DownloadTask sManager;
 
     //最大线程数
-    private static final int MAX_THREAD = 5;
+    private int maxThreadSize;
     private Context mContext;
     //总的下载进度
     private long totalProgress = 0;
+    //一定时间段内下载的大小
+    private long downloadSize = 0;
     //已完成下载的线程个数
     private AtomicInteger mCompleteThreadNum = new AtomicInteger(0);
     //下载路径
     private String mUrl;
     //下载回调
     private DownloadCallback mCallback;
-
+    //下载速度
+    String totalNetworkSpeed;
     private List<DownloadRunnable> mDownloadRunnables;
+
+    private long networkSpeedTime;
 
     public DownloadTask() {
         this.mDownloadRunnables = new ArrayList<>();
     }
 
-    public DownloadTask(Context context,String url,DownloadCallback callback){
+    public DownloadTask(Context context, int maxThreadSize, String url, DownloadCallback callback) {
         this();
-        this.mContext=context;
-        this.mUrl=url;
-        this.mCallback=callback;
+        this.mContext = context;
+        this.maxThreadSize = maxThreadSize;
+        this.mUrl = url;
+        this.mCallback = callback;
     }
 
     /**
      * 返回下载路径
+     *
      * @return
      */
-    public String getUrl(){
+    public String getUrl() {
         return mUrl;
     }
 
@@ -92,33 +101,20 @@ public class DownloadTask {
         return sManager;
     }
 
-    //创建线程池
-    private static ThreadPoolExecutor sThreadPool = new ThreadPoolExecutor(MAX_THREAD, MAX_THREAD,
-            60, TimeUnit.MILLISECONDS, new LinkedBlockingDeque<Runnable>(), new ThreadFactory() {
-        //使用AtomicInteger来实现自增操作，线程安全，
-        //如果使用i++或++i非线程安全
-        private AtomicInteger mInteger = new AtomicInteger(1);
-
-        @Override
-        public Thread newThread(@NonNull Runnable r) {
-            return new Thread(r, "download thread#" + mInteger.getAndIncrement());
-        }
-    });
-
     /**
      * 开始下载
      */
-    public void start(){
+    public void start() {
         //从数据库获取上次下载的进度，如果有，直接从上次下载终止的位置下载
         //如果没有，则从网络中获取文件的长度
-        List<DownloadProgress> lastDownloadProgresses=DownloadDBManager.getInstance(mContext).query(mUrl);
-        if(lastDownloadProgresses!=null&&lastDownloadProgresses.size()>0){
+        List<DownloadProgress> lastDownloadProgresses = DownloadDBManager.getInstance(mContext).query(mUrl);
+        if (lastDownloadProgresses != null && lastDownloadProgresses.size() > 0) {
             //获取上次下载的总进度
             for (DownloadProgress lastDownloadProgress : lastDownloadProgresses) {
-                totalProgress+=lastDownloadProgress.getProgress();
+                totalProgress += lastDownloadProgress.getProgress();
             }
-            lastProgressDownload(mContext,lastDownloadProgresses,mCallback);
-        }else{
+            lastProgressDownload(mContext, lastDownloadProgresses, mCallback);
+        } else {
             HttpManager.getInstance().aSyncRequest(mUrl, new Callback() {
                 @Override
                 public void onFailure(Call call, IOException e) {
@@ -150,16 +146,17 @@ public class DownloadTask {
 
     /**
      * 再次下载上次下载未完成的部分
+     *
      * @param context
      * @param downloadProgresses
      */
-    private void lastProgressDownload(Context context,List<DownloadProgress> downloadProgresses,DownloadCallback callback){
-        for(int i=0;i<downloadProgresses.size();i++){
-            DownloadProgress downloadProgress=downloadProgresses.get(i);
-            long startSize=downloadProgress.getProgress();
-            long endSize=downloadProgress.getEndSize();
-            startDownload(context,downloadProgress.getThreadId(),downloadProgress.getUrl(),downloadProgress.getFileName(),startSize,endSize,
-                    downloadProgress.getProgress(),downloadProgress.getContentLength(),callback);
+    private void lastProgressDownload(Context context, List<DownloadProgress> downloadProgresses, DownloadCallback callback) {
+        for (int i = 0; i < downloadProgresses.size(); i++) {
+            DownloadProgress downloadProgress = downloadProgresses.get(i);
+            long startSize = downloadProgress.getStartSize() + downloadProgress.getProgress();
+            long endSize = downloadProgress.getEndSize();
+            startDownload(context, downloadProgress.getThreadId(), downloadProgress.getUrl(), downloadProgress.getFileName(), startSize, endSize
+                    , downloadProgress.getContentLength(), downloadProgress.getProgress(), callback);
         }
     }
 
@@ -172,16 +169,16 @@ public class DownloadTask {
      */
     private void progressDownload(Context context, String url, final long contentLength, final DownloadCallback callback) {
         //分配每个线程下载长度
-        long threadDownloadSize = contentLength / MAX_THREAD;
+        long threadDownloadSize = contentLength / maxThreadSize;
         String fileName = url.substring(url.lastIndexOf("/"), url.length());
-        for (int i = 0; i < MAX_THREAD; i++) {
-           String threadId="threadId-"+(i+1);
-           long startSize=threadDownloadSize * i;
-           long endSize=threadDownloadSize * (i+1) - 1;
-           startDownload(context,threadId,url,fileName,startSize,endSize,contentLength,0,callback);
-           //保存数据库
+        for (int i = 0; i < maxThreadSize; i++) {
+            String threadId = "threadId-" + (i + 1);
+            long startSize = threadDownloadSize * i;
+            long endSize = threadDownloadSize * (i + 1) - 1;
+            startDownload(context, threadId, url, fileName, startSize, endSize, contentLength, 0, callback);
+            //保存数据库
             //记录每条线程的下载的进度
-            DownloadProgress downloadProgress=new DownloadProgress();
+            DownloadProgress downloadProgress = new DownloadProgress();
             downloadProgress.setUrl(url);
             downloadProgress.setContentLength(contentLength);
             downloadProgress.setFileName(fileName);
@@ -195,6 +192,7 @@ public class DownloadTask {
 
     /**
      * 开始下载
+     *
      * @param context
      * @param url
      * @param startSize
@@ -202,12 +200,12 @@ public class DownloadTask {
      * @param contentLength
      * @param callback
      */
-    private void startDownload(Context context,String threadId, String url,String fileName, long startSize, long endSize, final long contentLength,final long progress, final DownloadCallback callback){
-        DownloadRunnable runnable = new DownloadRunnable(context,threadId, url,fileName, startSize, endSize,progress, new DownloadCallback() {
+    private void startDownload(Context context, String threadId, String url, String fileName, long startSize, long endSize, final long contentLength, final long progress, final DownloadCallback callback) {
+        DownloadRunnable runnable = new DownloadRunnable(context, threadId, url, fileName, startSize, endSize, progress, new DownloadCallback() {
             @Override
             public void success(File file) {
                 mCompleteThreadNum.getAndIncrement();
-                if (mCompleteThreadNum.get() == MAX_THREAD) {
+                if (mCompleteThreadNum.get() == maxThreadSize) {
                     if (callback != null) {
                         callback.success(file);
                     }
@@ -229,26 +227,46 @@ public class DownloadTask {
             }
 
             @Override
-            public void progress(long progress) {
+            public void progress(long progress,String networkSpeed) {
                 synchronized (DownloadTask.this) {
                     totalProgress += progress;
+                    downloadSize += progress;
+                    if (System.currentTimeMillis() - networkSpeedTime >= 1000) {
+                        networkSpeedTime = System.currentTimeMillis();
+                        totalNetworkSpeed= NetworkUtils.networkSpeed(downloadSize)+"/s";
+                        downloadSize = 0;
+                    }
                     if (callback != null) {
-                        callback.progress((int) (Float.valueOf(String.valueOf(totalProgress)) / contentLength * 100));
+                        callback.progress((int) (Float.valueOf(String.valueOf(totalProgress)) / contentLength * 100),totalNetworkSpeed);
                     }
                 }
             }
+
+            @Override
+            public void start() {
+
+            }
+
+            @Override
+            public void pending() {
+
+            }
         });
-        sThreadPool.execute(runnable);
+        //加入线程池
+        DownloadDispatch.getInstance().getExcutorService().execute(runnable);
         mDownloadRunnables.add(runnable);
     }
 
     public void stopDownload() {
+        Log.d("TAG", "downloadRunnables.size=" + mDownloadRunnables);
         for (DownloadRunnable downloadRunnable : mDownloadRunnables) {
             downloadRunnable.stop();
         }
-        if(mCallback!=null){
+        if (mCallback != null) {
             mCallback.stop(mUrl);
         }
 
     }
+
+
 }

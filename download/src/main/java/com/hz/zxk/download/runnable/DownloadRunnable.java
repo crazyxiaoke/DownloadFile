@@ -1,14 +1,13 @@
 package com.hz.zxk.download.runnable;
 
 import android.content.Context;
-import android.util.Log;
 
 import com.hz.zxk.download.callback.DownloadCallback;
 import com.hz.zxk.download.constants.ErrorCode;
 import com.hz.zxk.download.db.DownloadDBManager;
 import com.hz.zxk.download.db.DownloadProgress;
 import com.hz.zxk.download.http.HttpManager;
-import com.hz.zxk.download.util.FileStorageUtil;
+import com.hz.zxk.download.util.FileStorageUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -73,6 +72,10 @@ public class DownloadRunnable implements Runnable {
         this.mCallback = callback;
     }
 
+    public String getUrl() {
+        return mUrl;
+    }
+
     @Override
     public void run() {
         //开始下载
@@ -84,7 +87,9 @@ public class DownloadRunnable implements Runnable {
         } else if (response.body() == null && mCallback != null) {
             mCallback.fail(ErrorCode.BODY_ERROR_CODE, "无法获取body");
         } else {
-            File file = FileStorageUtil.getFile(mContext, mFileName);
+            //获取数据库存储的记录
+            DownloadProgress downloadProgress=DownloadDBManager.getInstance(mContext).queryByThread(mUrl,mThreadId);
+            File file = FileStorageUtils.getFile(mContext, mFileName);
             RandomAccessFile randomAccessFile = null;
             InputStream inputStream = response.body().byteStream();
             try {
@@ -100,21 +105,14 @@ public class DownloadRunnable implements Runnable {
                     }
                     randomAccessFile.write(buff, 0, len);
                     mProgress += len;
-                    mCallback.progress(len);
+                    mCallback.progress(len,null);
                     //更新数据库，更新下载进度
-                    DownloadProgress downloadProgress=new DownloadProgress();
-                    downloadProgress.setUrl(mUrl);
-                    downloadProgress.setThreadId(mThreadId);
                     downloadProgress.setProgress(mProgress);
                     DownloadDBManager.getInstance(mContext).update(downloadProgress);
                 }
-                if (mProgress >= (mEndSize - mStartSize) + 1) {
+                if (mProgress >= (downloadProgress.getEndSize() - downloadProgress.getStartSize()) + 1) {
                     mCallback.success(file);
                     //线程下载完成，删除数据库中这条线程的记录
-                    DownloadProgress downloadProgress=new DownloadProgress();
-                    downloadProgress.setUrl(mUrl);
-                    downloadProgress.setThreadId(mThreadId);
-                    downloadProgress.setFileName(mFileName);
                     DownloadDBManager.getInstance(mContext).delete(downloadProgress);
                 }
             } catch (IOException e) {

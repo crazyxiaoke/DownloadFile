@@ -1,6 +1,4 @@
-package com.hz.zxk.download.callback;
-
-import java.io.File;
+package com.hz.zxk.downloadfile.entiy;
 
 /**
  * 　　┏┓　　　　┏┓
@@ -20,46 +18,34 @@ import java.io.File;
  * 　　　　┗┓┓┏━┳┓┏┛
  * 　　　　　┃┫┫　┃┫┫
  * <p>
- * Created by zxk on 19-3-1.
+ * Created by zxk on 19-3-4.
  */
-public interface DownloadCallback {
+public class ApkInfo {
+    private String name;
+    private String url;
+    private int downloadStatus;
 
-    /**
-     * 下载开始
-     */
-    void start();
+    public String getName() {
+        return name;
+    }
 
-    /**
-     * 下载等待
-     */
+    public void setName(String name) {
+        this.name = name;
+    }
 
-    void pending();
+    public String getUrl() {
+        return url;
+    }
 
-    /**
-     * 下载完成
-     *
-     * @param file
-     */
-    void success(File file);
+    public void setUrl(String url) {
+        this.url = url;
+    }
 
-    /**
-     * 下载失败
-     *
-     * @param code
-     * @param errormsg
-     */
-    void fail(int code, String errormsg);
+    public int getDownloadStatus() {
+        return downloadStatus;
+    }
 
-    /**
-     * 停止下载
-     */
-    void stop(String url);
-
-    /**
-     * 下载进度
-     *
-     * @param progress
-     */
-    void progress(long progress, String networkspeed);
-
+    public void setDownloadStatus(int downloadStatus) {
+        this.downloadStatus = downloadStatus;
+    }
 }

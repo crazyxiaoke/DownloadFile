@@ -29,9 +29,8 @@ import org.greenrobot.greendao.annotation.Unique;
 public class DownloadProgress {
 
     @Id(autoincrement = true)
-    private long id;
+    private Long id;
 
-    @Unique
     private String url;
 
     private String fileName;
@@ -46,8 +45,8 @@ public class DownloadProgress {
 
     private long progress;
 
-    @Generated(hash = 625750760)
-    public DownloadProgress(long id, String url, String fileName, String threadId,
+    @Generated(hash = 2035715657)
+    public DownloadProgress(Long id, String url, String fileName, String threadId,
             long startSize, long endSize, long contentLength, long progress) {
         this.id = id;
         this.url = url;
@@ -62,12 +61,12 @@ public class DownloadProgress {
     @Generated(hash = 441206902)
     public DownloadProgress() {
     }
-    
-    public long getId() {
+
+    public Long getId() {
         return id;
     }
 
-    public void setId(long id) {
+    public void setId(Long id) {
         this.id = id;
     }
 
@@ -126,4 +125,19 @@ public class DownloadProgress {
     public void setThreadId(String threadId) {
         this.threadId = threadId;
     }
+
+    @Override
+    public String toString() {
+        return "DownloadProgress{" +
+                "id=" + id +
+                ", url='" + url + '\'' +
+                ", fileName='" + fileName + '\'' +
+                ", threadId='" + threadId + '\'' +
+                ", startSize=" + startSize +
+                ", endSize=" + endSize +
+                ", contentLength=" + contentLength +
+                ", progress=" + progress +
+                '}';
+    }
+
 }

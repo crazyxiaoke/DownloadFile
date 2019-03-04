@@ -2,6 +2,7 @@ package com.hz.zxk.download.db;
 
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
+import android.util.Log;
 
 import org.greenrobot.greendao.query.QueryBuilder;
 
@@ -34,7 +35,7 @@ public class DownloadDBManager {
     private static DownloadDBManager sInstance;
 
     public DownloadDBManager(Context context) {
-        this.context=context;
+        this.context = context;
         mOpenHelper = new DaoMaster.DevOpenHelper(context, db_name);
     }
 
@@ -51,70 +52,86 @@ public class DownloadDBManager {
 
     /**
      * 获取可读数据库
+     *
      * @return
      */
-    public SQLiteDatabase getReadableDatabase(){
-        if(mOpenHelper==null){
-            mOpenHelper=new DaoMaster.DevOpenHelper(context,db_name);
+    public SQLiteDatabase getReadableDatabase() {
+        if (mOpenHelper == null) {
+            mOpenHelper = new DaoMaster.DevOpenHelper(context, db_name);
         }
         return mOpenHelper.getReadableDatabase();
     }
 
     /**
      * 获取可读写数据库
+     *
      * @return
      */
-    public SQLiteDatabase getWritableDatabase(){
-        if(mOpenHelper==null){
-            mOpenHelper=new DaoMaster.DevOpenHelper(context,db_name);
+    public SQLiteDatabase getWritableDatabase() {
+        if (mOpenHelper == null) {
+            mOpenHelper = new DaoMaster.DevOpenHelper(context, db_name);
         }
         return mOpenHelper.getWritableDatabase();
     }
 
     /**
      * 根据url查询上次下载的进度
+     *
      * @param url
      * @return
      */
-    public List<DownloadProgress> query(String url){
-        DaoMaster daoMaster=new DaoMaster(getReadableDatabase());
-        DaoSession daoSession=daoMaster.newSession();
-        DownloadProgressDao downloadProgressDao=daoSession.getDownloadProgressDao();
-        QueryBuilder<DownloadProgress> qb=downloadProgressDao.queryBuilder();
+    public List<DownloadProgress> query(String url) {
+        DaoMaster daoMaster = new DaoMaster(getReadableDatabase());
+        DaoSession daoSession = daoMaster.newSession();
+        DownloadProgressDao downloadProgressDao = daoSession.getDownloadProgressDao();
+        QueryBuilder<DownloadProgress> qb = downloadProgressDao.queryBuilder();
         qb.where(DownloadProgressDao.Properties.Url.eq(url));
         return qb.list();
     }
 
+    public DownloadProgress queryByThread(String url, String threadId) {
+        DaoMaster daoMaster = new DaoMaster(getReadableDatabase());
+        DaoSession daoSession = daoMaster.newSession();
+        DownloadProgressDao downloadProgressDao = daoSession.getDownloadProgressDao();
+        QueryBuilder<DownloadProgress> qb = downloadProgressDao.queryBuilder();
+        qb.where(DownloadProgressDao.Properties.Url.eq(url), DownloadProgressDao.Properties.ThreadId.eq(threadId));
+        return qb.unique();
+    }
+
     /**
      * 保存当前线程下载进度
+     *
      * @param downloadProgress
      */
-    public void save(DownloadProgress downloadProgress){
-        DaoMaster daoMaster=new DaoMaster(getWritableDatabase());
-        DaoSession daoSession=daoMaster.newSession();
-        DownloadProgressDao downloadProgressDao=daoSession.getDownloadProgressDao();
-        downloadProgressDao.save(downloadProgress);
+    public void save(DownloadProgress downloadProgress) {
+        Log.d("TAG", "downloadProgress=" + downloadProgress);
+        DaoMaster daoMaster = new DaoMaster(getWritableDatabase());
+        DaoSession daoSession = daoMaster.newSession();
+        DownloadProgressDao downloadProgressDao = daoSession.getDownloadProgressDao();
+        downloadProgressDao.insert(downloadProgress);
     }
 
     /**
      * 更新下载进度
+     *
      * @param downloadProgress
      */
-    public void update(DownloadProgress downloadProgress){
-        DaoMaster daoMaster=new DaoMaster(getWritableDatabase());
-        DaoSession daoSession=daoMaster.newSession();
-        DownloadProgressDao downloadProgressDao=daoSession.getDownloadProgressDao();
+    public void update(DownloadProgress downloadProgress) {
+        DaoMaster daoMaster = new DaoMaster(getWritableDatabase());
+        DaoSession daoSession = daoMaster.newSession();
+        DownloadProgressDao downloadProgressDao = daoSession.getDownloadProgressDao();
         downloadProgressDao.update(downloadProgress);
     }
 
     /**
      * 删除下载进度
+     *
      * @param downloadProgress
      */
-    public void delete(DownloadProgress downloadProgress){
-        DaoMaster daoMaster=new DaoMaster(getWritableDatabase());
-        DaoSession daoSession=daoMaster.newSession();
-        DownloadProgressDao downloadProgressDao=daoSession.getDownloadProgressDao();
+    public void delete(DownloadProgress downloadProgress) {
+        DaoMaster daoMaster = new DaoMaster(getWritableDatabase());
+        DaoSession daoSession = daoMaster.newSession();
+        DownloadProgressDao downloadProgressDao = daoSession.getDownloadProgressDao();
         downloadProgressDao.delete(downloadProgress);
     }
 

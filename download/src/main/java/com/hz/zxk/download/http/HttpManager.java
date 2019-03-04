@@ -1,5 +1,7 @@
 package com.hz.zxk.download.http;
 
+import android.util.Log;
+
 import java.io.IOException;
 
 import okhttp3.Call;
@@ -63,12 +65,15 @@ public class HttpManager {
 
     /**
      * 同步请求，使用Range定义每次获取的文件长度
+     *
      * @param url
      * @param startSize
      * @param endSize
      * @return
      */
     public Response syncRequestRange(String url, long startSize, long endSize) {
+        Log.d("TAG", "startSize=" + startSize);
+        Log.d("TAG", "endSize=" + endSize);
         Request request = new Request.Builder()
                 .url(url)
                 .addHeader("Range", String.format("bytes=%s-%s", startSize, endSize))
